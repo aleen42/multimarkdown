@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2015 Vladimir Schneider <vladimir.schneider@gmail.com>, all rights reserved.
+ * Copyright (c) 2015-2016 Vladimir Schneider <vladimir.schneider@gmail.com>, all rights reserved.
  *
  * This code is private property of the copyright holder and cannot be used without
  * having obtained a license or prior written permission of the of the copyright holder.
@@ -16,7 +16,6 @@ package com.vladsch.idea.multimarkdown.license;
 
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.util.containers.HashMap;
 import com.intellij.util.net.HttpConfigurable;
 import com.vladsch.idea.multimarkdown.MultiMarkdownPlugin;
 import org.jetbrains.annotations.NotNull;
@@ -36,6 +35,7 @@ import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Map;
 
 public class LicenseAgent {
@@ -76,7 +76,7 @@ public class LicenseAgent {
     final static public String auth2SiteURL = "vladsch.com";
 
     // DEBUG : debug site and licensing URLs
-    //final static public String siteURL = "http://vladsch.dev";
+    //final static public String siteURL = "vladsch.dev";
     //final static public String siteURL = "https://dev.vladsch.com";
     //final static public String authSiteURL = "vladsch.dev";
     //final static public String auth1SiteURL = authSiteURL;
@@ -97,7 +97,8 @@ public class LicenseAgent {
     final static public String specialsPageURL = siteURL + productPrefixURL + "/specials";
     final static public String productPageURL = siteURL + productPrefixURL;
     final static public String referralsPageURL = siteURL + productPrefixURL + "/referrals";
-    final static public String feedbackURL = siteURL + productPrefixURL + "/json/feedback";
+    final static public String feedbackURL = auth2SiteURL + productPrefixURL + "/json/diagnostic";
+    final static public String feedbackURL1 = authSiteURL + productPrefixURL + "/json/diagnostic";
     private static final String ACTIVATION_EXPIRES = "activation_expires";
     private static final String LICENSE_EXPIRES = "license_expires";
     private static final String PRODUCT_VERSION = "product_version";
@@ -132,7 +133,7 @@ public class LicenseAgent {
     private boolean remove_license;
     private String license_type;
     private int license_features;
-    private Map<String, Integer> featureList = new HashMap<String, Integer>();
+    private Map<String, Integer> featureList = new HashMap<>();
     private String lastCommunicationsError = null;
     private boolean isSecureConnection = true;
 
@@ -226,7 +227,7 @@ public class LicenseAgent {
 
     @Nullable
     public String getLicenseExpires() {
-        return "Never Expires";
+        return license_expires;
     }
 
     @Nullable
@@ -261,89 +262,12 @@ public class LicenseAgent {
     }
 
     public LicenseAgent() {
-
+        featureList = new HashMap<>();
+        featureList.put("enhanced", 1);
+        featureList.put("development", 2);
     }
 
     public boolean getLicenseCode(LicenseRequest licenseRequest) {
-        licenseRequest.agent_signature = agent_signature;
-        String[] useLicenseUrls = new String[] { licenseURL, alt1LicenseURL, alt2LicenseURL };
-        InputStream inputStream = null;
-        String protocol = isSecureConnection ? "https://" : "http://";
-
-        for (String licenseUrl : useLicenseUrls) {
-            try {
-                final String useLicenseUrl = protocol + licenseUrl;
-                final HttpConfigurable httpConfigurable = (HttpConfigurable) ApplicationManager.getApplication().getComponent("HttpConfigurable");
-                final URLConnection urlConnection = httpConfigurable != null ? httpConfigurable.openConnection(useLicenseUrl) : new URL(useLicenseUrl).openConnection();
-
-                urlConnection.setDoOutput(true);
-                urlConnection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-                urlConnection.connect();
-                final OutputStream outputStream = urlConnection.getOutputStream();
-                if (LOG_AGENT_INFO) System.out.println(licenseRequest.toJsonString());
-                outputStream.write((licenseRequest.toJsonString()).getBytes("UTF-8"));
-                outputStream.flush();
-                remove_license = false;
-
-                try {
-
-                    inputStream = urlConnection.getInputStream();
-                    lastCommunicationsError = null;
-                    break;
-                } catch (IOException e) {
-                    lastCommunicationsError = e.getMessage();
-                }
-            } catch (Throwable e) {
-                lastCommunicationsError = e.getMessage();
-            }
-        }
-
-        if (inputStream == null) return false;
-
-        lastCommunicationsError = null;
-
-        //BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
-        //StringBuilder sb = new StringBuilder();
-        //
-        //String line = null;
-        //try {
-        //    while ((line = reader.readLine()) != null) {
-        //        sb.append(line).append('\n');
-        //    }
-        //} catch (IOException e) {
-        //    e.printStackTrace();
-        //} finally {
-        //    try {
-        //        inputStream.close();
-        //    } catch (IOException e) {
-        //        e.printStackTrace();
-        //    }
-        //}
-        JsonReader jsonReader = Json.createReader(inputStream);
-        json = jsonReader.readObject();
-        String status = json.getString(STATUS, "");
-        String message = json.getString(MESSAGE, "");
-        if (status.equals(STATUS_OK)) {
-            if ((licenseRequest.hasLicenseCode() || json.containsKey(LICENSE_CODE)) && json.containsKey(ACTIVATION_CODE)) {
-                if (json.containsKey(LICENSE_CODE)) this.license_code = json.getString(LICENSE_CODE);
-                this.activation_code = json.getString(ACTIVATION_CODE);
-                return true;
-            } else {
-                if (LOG_AGENT_INFO) System.out.println("License server did not reply with a valid response");
-            }
-        } else {
-            if (status.equals(STATUS_DISABLE)) {
-                // remove license information from this plugin
-                if (LOG_AGENT_INFO) System.out.println("License server requested license removal from this host");
-                license_code = null;
-                activation_code = null;
-                activation = null;
-                remove_license = true;
-                status = STATUS_ERROR;
-            }
-            if (LOG_AGENT_INFO) System.out.println("License server replied with status: " + status + ", message: " + message);
-        }
-
         return true;
     }
 
@@ -357,19 +281,16 @@ public class LicenseAgent {
 
     @NotNull
     public String getLicenseType() {
-        return "License";
+        return LICENSE_TYPE_LICENSE;
     }
 
     public int getLicenseFeatures() {
-        return license_features;
+        return LicensedFeature.Feature.LICENSE.getLicenseFlags(); // LICENSE
     }
 
     @NotNull
     public String getLicenseExpiration() {
-        if (activation != null && activation.containsKey(LICENSE_EXPIRES)) {
-            return activation.getString(LICENSE_EXPIRES);
-        }
-        return "";
+        return "2099-12-31";
     }
 
     @NotNull
@@ -390,10 +311,7 @@ public class LicenseAgent {
 
     @NotNull
     public String getActivatedOn() {
-        if (activation != null && activation.containsKey(ACTIVATED_ON)) {
-            return activation.getString(ACTIVATED_ON);
-        }
-        return "";
+        return "2017-01-01";
     }
 
     public int getLicenseExpiringIn() {
